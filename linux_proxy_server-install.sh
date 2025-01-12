@@ -11,7 +11,7 @@ proxy_server_name="siberlyproxy"
 proxy_server_path="/usr/bin/${proxy_server_name}"
 source_file="/root/linux_proxy_server.c"
 auth_user="siberly"
-auth_pass="123456!@#abc"
+auth_pass="123456"
 echo "[+]Loading source code..."
 sleep 5
 if cat > /root/linux_proxy_server.c << EOF
@@ -32,7 +32,7 @@ if cat > /root/linux_proxy_server.c << EOF
 #define BUFFER_SIZE 8192
 #define PORT 8080
 #define AUTH_USER "siberly"
-#define AUTH_PASS "123456!@#abc"
+#define AUTH_PASS "123456"
 
 // 在文件开头添加函数声明
 void record_failed_attempt(const char* client_ip);
