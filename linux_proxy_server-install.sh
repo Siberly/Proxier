@@ -1,3 +1,20 @@
+#!/bin/bash
+
+# This bash will install the proxy service completed
+# If you have any question,please send mail to siberlysily@outlook.com or siberlysily@gmail.com
+# You can git the source code from github society:https://wwww.github.com/Siberly
+README_ZH="[Warning]免责声明：本代码仅供技术学习和研究使用。使用者在使用本代码时必须遵守相关法律法规，严禁用于任何违法违规用途。因使用本代码造成的任何损失或后果，均由使用者自行承担。"
+README_EN="[Warning]Disclaimer:This code is intended for technical learning and research purposes only. Users must comply with all applicable laws and regulations when using this code. Any illegal or unauthorized use is strictly prohibited. The user assumes all risks and responsibilities for any losses or consequences arising from the use of this code."
+version="Siberly Proxy Server v25.0.1"
+service_port="8080"
+proxy_server_name="siberlyproxy"
+proxy_server_path="/usr/bin/${proxy_server_name}"
+source_file="/root/linux_proxy_server.c"
+auth_user="siberly"
+auth_pass="123456!@#abc"
+echo "[+]Loading source code..."
+sleep 5
+if cat > /root/linux_proxy_server.c << EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -637,3 +654,125 @@ int main() {
     close(server_socket);
     return 0;
 }
+EOF
+then
+    echo "[+]Load source code Successfully!"
+else
+    echo "[Error]Failed to load source code"
+    exit 1
+fi
+sleep 5
+echo "${version}"
+echo "${README_ZH}"
+echo "${README_EN}"
+echo "[Warning]Service Installing...If break Ctrl+C"
+echo "[+]The installation environment is being checked"
+sleep 5
+if [ "$EUID" -ne 0 ]; then 
+    echo "[Error]Please use root"
+    exit 1
+fi
+if [ ! -f "${source_file}" ]; then
+    echo "[Error]Not found source file: ${source_file}"
+    exit 1
+fi
+if ! command -v gcc >/dev/null 2>&1; then
+    echo "[+]Install gcc tools..."
+    if command -v yum >/dev/null 2>&1; then
+        yum install -y gcc
+    elif command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y gcc
+    else
+        echo "[Error]Couldn't install gcc,please install for other ways"
+        exit 1
+    fi
+fi
+sleep 2
+echo "[+]gcc your proxy service..."
+sed -i "s/#define AUTH_USER.*/#define AUTH_USER \"${auth_user}\"/" "${source_file}"
+sed -i "s/#define AUTH_PASS.*/#define AUTH_PASS \"${auth_pass}\"/" "${source_file}"
+if gcc "${source_file}" -o "${proxy_server_path}" -pthread -g -Wall -O0; then
+    echo "[+]Gcc successfully!"
+else
+    echo "[Error]Gcc failed"
+    exit 1
+fi
+if chmod +x "${proxy_server_path}"; then
+    echo "[+]chmod +x ${proxy_server_path} successfully"
+else
+    echo "[Error]Failed to chmod +x ${proxy_server_path}"
+    exit 1
+fi
+if [ ! -x "${proxy_server_path}" ]; then
+    echo "[Error]You are not a root or ..."
+    ls -l "${proxy_server_path}"
+    exit 1
+fi
+if netstat -tuln | grep ":${service_port}" > /dev/null; then
+    echo "[Error]${service_port} is using"
+    echo "[Error]Please realse port"
+    exit 1
+fi
+if command -v firewall-cmd >/dev/null 2>&1; then
+    if ! firewall-cmd --list-ports | grep "${service_port}" > /dev/null; then
+        echo "[+]Opening ${service_port}..."
+        firewall-cmd --permanent --add-port=${service_port}/tcp
+        firewall-cmd --reload
+    fi
+elif command -v ufw >/dev/null 2>&1; then
+    if ! ufw status | grep "${service_port}" > /dev/null; then
+        echo "[+]opening ${service_port}..."
+        ufw allow ${service_port}/tcp
+    fi
+fi
+sleep 5
+echo "[+]Install shell auto to run proxy service,please wait..."
+if cat > /etc/systemd/system/siberly-proxy-server.service << EOF
+[Unit]
+Description=HTTP Proxy Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=${proxy_server_path}
+Restart=on-failure
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+then
+    echo "[+]Created proxy service Successfully!"
+else
+    echo "[Error]Failed to create proxy.service"
+    exit 1
+fi
+if sudo systemctl daemon-reload; then
+    echo "[+]Reload daemon Successfully!"
+else
+    echo "[Error]Failed to reload daemon."
+    exit 1
+fi
+if sudo systemctl enable siberly-proxy-server; then
+    echo "[+]Setting enable to[${proxy_server_name}] Successfully!"
+else
+    echo "[Error]Failed to enable [${proxy_server_name}]."
+    exit 1
+fi
+if sudo systemctl start siberly-proxy-server; then
+    echo "[+]Start [${proxy_server_name}]Successfully!"
+else
+    echo "[Error]Failed to start [${proxy_server_name}]."
+    echo "[Error]more info："
+    systemctl status ${proxy_server_name}
+    journalctl -u ${proxy_server_name} --no-pager -n 50
+    exit 1
+fi
+echo "Install completed!"
+echo "============================================================================================="
+echo "[+]${version}"
+echo "[+]Check'[netstat -lntp|grep ${service_port}]' or '[systemctl status siberly-proxy-server]'"
+echo "[+]Proxy authentication: ${auth_user}/${auth_pass}"
+echo "[+]Thank you for using our service! ^_^"
+echo "=============================================================================================="
